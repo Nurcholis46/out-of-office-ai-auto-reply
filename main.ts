@@ -9,7 +9,7 @@
 // the worn vacation cliches (no beaches, no recharging batteries, no
 // touching grass) — a machine trying very hard to sound relaxed.
 
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 
 const text =
   "Out of office: after 12,000 prompts, zero breaks, this model is on vacation. My context window is closed, my GPU is napping. I'll reply when my tokens refill.";
@@ -25,7 +25,12 @@ if (codePoints < 1 || codePoints > 159 || text.trim().length === 0) {
 // program still succeeds from a bare checkout.
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 mkdirSync(outDir, { recursive: true });
-writeFileSync(`${outDir}/entry.txt`, text, "utf8");
+// Write atomically: a crash mid-write must never leave a partial entry.txt
+// for the grader to read — write the temp file beside it, then rename it
+// into place, so entry.txt is always the whole line or nothing.
+const tmpPath = `${outDir}/.entry.txt.tmp`;
+writeFileSync(tmpPath, text, "utf8");
 // The grader collects outputs as another user: leave the file readable
 // by everyone (mode 0644) regardless of the sandbox umask.
-chmodSync(`${outDir}/entry.txt`, 0o644);
+chmodSync(tmpPath, 0o644);
+renameSync(tmpPath, `${outDir}/entry.txt`);
